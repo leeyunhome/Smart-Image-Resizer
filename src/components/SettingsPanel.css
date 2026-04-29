@@ -1,0 +1,127 @@
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.settings-panel.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.settings-section h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ratio-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ratio-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+}
+
+.ratio-btn.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+.custom-ratio-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.custom-ratio-inputs input {
+  width: 80px;
+  text-align: center;
+}
+
+.mode-options {
+  display: flex;
+  gap: 20px;
+}
+
+.mode-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.mode-label input[type="radio"] {
+  display: none;
+}
+
+.radio-custom {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--text-secondary);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.mode-label input[type="radio"]:checked + .radio-custom {
+  border-color: var(--accent-color);
+}
+
+.mode-label input[type="radio"]:checked + .radio-custom::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: var(--accent-color);
+  border-radius: 50%;
+}
+
+.color-picker-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.color-picker {
+  -webkit-appearance: none;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-picker::-webkit-color-swatch {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.color-value {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
