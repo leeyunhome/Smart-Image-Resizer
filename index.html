@@ -1,17 +1,114 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>recipe_7</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script>
-      window.$RefreshReg$ = () => {};
-      window.$RefreshSig$ = () => (type) => type;
-    </script>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Image Resizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <a href="https://nanalab.kr" target="_blank" class="logo-link">
+      <img src="1o8o.png" alt="1o8o" onerror="this.style.display='none'">
+    </a>
+    <h1>Smart Image Resizer</h1>
+  </header>
+
+  <main>
+    <!-- 왼쪽: 업로드 + 설정 -->
+    <aside class="left-panel">
+      <div class="panel">
+
+        <div class="upload-area" id="upload-area">
+          <div class="upload-icon">🖼️</div>
+          <p>이미지를 드래그 앤 드롭하거나</p>
+          <button id="upload-btn" class="btn-upload">파일 선택</button>
+        </div>
+        <input type="file" id="file-input" accept="image/*" multiple>
+
+        <p class="section-title">캔버스 비율</p>
+        <div class="ratio-grid">
+          <button class="ratio-btn active" data-ratio="1:1">1:1</button>
+          <button class="ratio-btn" data-ratio="3:4">3:4</button>
+          <button class="ratio-btn" data-ratio="4:3">4:3</button>
+          <button class="ratio-btn" data-ratio="9:16">9:16</button>
+          <button class="ratio-btn" data-ratio="16:9">16:9</button>
+          <button class="ratio-btn" data-ratio="custom">커스텀</button>
+        </div>
+        <div class="custom-ratio" id="custom-ratio">
+          <input type="number" id="custom-w" value="1" min="1" max="9999" placeholder="W">
+          <span>:</span>
+          <input type="number" id="custom-h" value="1" min="1" max="9999" placeholder="H">
+        </div>
+
+        <p class="section-title">처리 방식</p>
+        <div class="mode-toggle">
+          <button class="mode-btn active" data-mode="padding">Padding</button>
+          <button class="mode-btn" data-mode="crop">Crop</button>
+        </div>
+        <div class="color-row visible" id="color-row">
+          <input type="color" id="pad-color" value="#ffffff">
+          <label for="pad-color">여백 색상</label>
+        </div>
+
+        <p class="section-title">출력 해상도</p>
+        <div class="res-toggle">
+          <button class="res-btn active" data-res="original">원본 크기</button>
+          <button class="res-btn" data-res="custom">직접 지정</button>
+        </div>
+        <div class="res-custom-panel" id="res-custom-panel">
+          <select id="res-preset">
+            <option value="">— 프리셋 선택 —</option>
+            <optgroup label="📱 소셜미디어">
+              <option value="1080,1080">Instagram 피드 (1080×1080)</option>
+              <option value="1080,1350">Instagram 세로 (1080×1350)</option>
+              <option value="1080,1920">Instagram 스토리 (1080×1920)</option>
+              <option value="1280,720">유튜브 썸네일 (1280×720)</option>
+              <option value="2560,1440">유튜브 채널아트 (2560×1440)</option>
+              <option value="1200,675">트위터/X 포스트 (1200×675)</option>
+              <option value="1200,630">페이스북 포스트 (1200×630)</option>
+              <option value="820,312">페이스북 커버 (820×312)</option>
+            </optgroup>
+            <optgroup label="🖥️ 디스플레이">
+              <option value="1280,720">HD 720p (1280×720)</option>
+              <option value="1920,1080">Full HD 1080p (1920×1080)</option>
+              <option value="2560,1440">QHD 1440p (2560×1440)</option>
+              <option value="3840,2160">4K UHD (3840×2160)</option>
+            </optgroup>
+          </select>
+          <div class="res-size-row">
+            <input type="number" id="res-w" min="1" max="8000" placeholder="넓이">
+            <span>×</span>
+            <input type="number" id="res-h" min="1" max="8000" placeholder="높이">
+            <span class="res-unit">px</span>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- 오른쪽: 이미지 목록 -->
+    <section class="right-panel">
+      <div class="right-header">
+        <h2>이미지 목록 <span id="count-badge"></span></h2>
+        <div class="action-row">
+          <button class="btn btn-primary" id="process-btn" disabled>처리 시작</button>
+          <button class="btn btn-secondary" id="download-all-btn" disabled>ZIP 다운로드</button>
+        </div>
+      </div>
+      <div id="image-list"></div>
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">📂</div>
+        <p>업로드된 이미지가 없습니다</p>
+        <p class="empty-sub">왼쪽에서 이미지를 추가하세요</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="app.js"></script>
+</body>
 </html>
