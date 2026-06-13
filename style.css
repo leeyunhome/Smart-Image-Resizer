@@ -529,6 +529,9 @@ main {
 
 /* Item action button */
 .item-action {
+  display: flex;
+  gap: 6px;
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -589,4 +592,111 @@ main {
   font-size: 0.8rem !important;
   margin-top: 6px;
   opacity: 0.6;
+}
+
+/* ── AI Key Section ── */
+.ai-key-section {
+  margin-top: 4px;
+}
+
+.ai-key-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-key-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.ai-key-row input:focus {
+  border-color: var(--accent);
+}
+
+.btn-sm {
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.btn-sm:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.ai-key-status {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+  min-height: 1em;
+}
+
+.ai-key-status.saved {
+  color: var(--success);
+}
+
+/* ── AI Model Select ── */
+.ai-model-select {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  outline: none;
+  display: none;
+}
+
+.ai-model-select.visible {
+  display: block;
+}
+
+.ai-model-select:focus {
+  border-color: var(--accent);
+}
+
+.ai-model-select option {
+  background: #1e293b;
+  color: var(--text);
+}
+
+/* ── AI Button ── */
+.ai-btn {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(236, 72, 153, 0.12));
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
+.ai-btn:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(236, 72, 153, 0.28));
+  border-color: rgba(139, 92, 246, 0.6);
+}
+
+.ai-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── AI Name Tag ── */
+.ai-name-tag {
+  font-size: 0.75rem;
+  margin-right: 3px;
+  opacity: 0.8;
 }

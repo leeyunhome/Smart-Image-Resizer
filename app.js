@@ -136,7 +136,9 @@ function addFiles(fileList) {
       status: 'pending',
       progress: 0,
       result: null,
-      errorMsg: ''
+      errorMsg: '',
+      customName: null,
+      aiLoading: false
     });
   });
   renderList();
@@ -154,12 +156,19 @@ function renderList() {
   imageListEl.innerHTML = state.images.map(itemHTML).join('');
 }
 
+function nameHTML(img) {
+  if (img.customName) {
+    return `<span class="ai-name-tag">✨</span>${esc(img.customName)}`;
+  }
+  return esc(img.file.name);
+}
+
 function itemHTML(img) {
   return `
     <div class="image-item" id="item-${img.id}">
       <img class="thumb" src="${img.previewUrl}" alt="${esc(img.file.name)}">
       <div class="item-info">
-        <div class="item-name" title="${esc(img.file.name)}">${esc(img.file.name)}</div>
+        <div class="item-name" title="${esc(img.customName || img.file.name)}">${nameHTML(img)}</div>
         <div class="progress-wrap">
           <div class="progress-bar ${img.status}" style="width:${img.progress}%"></div>
         </div>
@@ -170,13 +179,20 @@ function itemHTML(img) {
 }
 
 function actionHTML(img) {
+  const hasKey = !!getApiKey();
+  const aiBtn = hasKey
+    ? `<button class="btn-icon ai-btn${img.aiLoading ? ' spinning' : ''}" title="AI 파일명 분석"
+        onclick="analyzeImageName('${img.id}')"
+        ${img.aiLoading || img.status === 'processing' ? 'disabled' : ''}>✨</button>`
+    : '';
+
   if (img.status === 'done') {
-    return `<button class="btn-icon" title="다운로드" onclick="downloadSingle('${img.id}')">⬇️</button>`;
+    return aiBtn + `<button class="btn-icon" title="다운로드" onclick="downloadSingle('${img.id}')">⬇️</button>`;
   }
   if (img.status === 'processing') {
-    return `<span class="btn-icon spinning">⟳</span>`;
+    return aiBtn + `<span class="btn-icon spinning">⟳</span>`;
   }
-  return `<button class="btn-icon remove" title="제거" onclick="removeImage('${img.id}')">✕</button>`;
+  return aiBtn + `<button class="btn-icon remove" title="제거" onclick="removeImage('${img.id}')">✕</button>`;
 }
 
 function statusText(img) {
@@ -196,6 +212,11 @@ function updateItemEl(img) {
   statusEl.textContent = statusText(img);
   statusEl.className = `item-status ${img.status}`;
   el.querySelector('.item-action').innerHTML = actionHTML(img);
+  const nameEl = el.querySelector('.item-name');
+  if (nameEl) {
+    nameEl.title = img.customName || img.file.name;
+    nameEl.innerHTML = nameHTML(img);
+  }
 }
 
 function updateControls() {
@@ -352,7 +373,9 @@ function downloadSingle(id) {
   const img = state.images.find(i => i.id === id);
   if (!img?.result) return;
   const ext  = isPng(img.file) ? 'png' : 'jpg';
-  const name = img.file.name.replace(/\.[^.]+$/, '') + '_resized.' + ext;
+  const name = img.customName
+    ? `${img.customName}.${ext}`
+    : img.file.name.replace(/\.[^.]+$/, '') + '_resized.' + ext;
   triggerDownload(img.result, name);
 }
 
@@ -368,7 +391,9 @@ async function downloadAll() {
     const zip = new JSZip();
     done.forEach(img => {
       const ext  = isPng(img.file) ? 'png' : 'jpg';
-      const name = img.file.name.replace(/\.[^.]+$/, '') + '_resized.' + ext;
+      const name = img.customName
+        ? `${img.customName}.${ext}`
+        : img.file.name.replace(/\.[^.]+$/, '') + '_resized.' + ext;
       zip.file(name, img.result.split(',')[1], { base64: true });
     });
     const blob = await zip.generateAsync({ type: 'blob' });
@@ -393,8 +418,186 @@ function esc(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── API Key ──
+function getApiKey() {
+  return localStorage.getItem('gemini_api_key') || '';
+}
+
+async function fetchGeminiModels() {
+  const apiKey = getApiKey();
+  const modelSelect = document.getElementById('ai-model-select');
+  if (!apiKey || !modelSelect) return;
+
+  modelSelect.innerHTML = '<option value="">모델 목록 불러오는 중...</option>';
+  modelSelect.classList.add('visible');
+
+  try {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
+    );
+    if (!resp.ok) throw new Error(`${resp.status}`);
+
+    const data = await resp.json();
+    const models = (data.models || [])
+      .filter(m =>
+        Array.isArray(m.supportedGenerationMethods) &&
+        m.supportedGenerationMethods.includes('generateContent') &&
+        m.name.includes('gemini')
+      )
+      .sort((a, b) => b.name.localeCompare(a.name));
+
+    if (models.length === 0) {
+      modelSelect.innerHTML = '<option value="">사용 가능한 모델 없음</option>';
+      return;
+    }
+
+    const savedModel = localStorage.getItem('gemini_model') || 'models/gemini-2.0-flash';
+    modelSelect.innerHTML = models
+      .map(m => `<option value="${m.name}"${m.name === savedModel ? ' selected' : ''}>${m.displayName || m.name}</option>`)
+      .join('');
+
+    if (!models.find(m => m.name === savedModel)) {
+      modelSelect.value = models[0].name;
+      localStorage.setItem('gemini_model', models[0].name);
+    }
+  } catch (e) {
+    modelSelect.innerHTML = '<option value="">모델 로드 실패 — 키를 확인하세요</option>';
+  }
+}
+
+function initApiKeyUI() {
+  const input    = document.getElementById('api-key-input');
+  const statusEl = document.getElementById('api-key-status');
+  const saveBtn  = document.getElementById('api-key-save-btn');
+  const modelSelect = document.getElementById('ai-model-select');
+
+  const saved = getApiKey();
+  if (saved) {
+    input.value = saved;
+    statusEl.textContent = '✓ API 키 저장됨';
+    statusEl.className = 'ai-key-status saved';
+    fetchGeminiModels();
+  }
+
+  saveBtn.addEventListener('click', () => {
+    const key = input.value.trim();
+    if (key) {
+      localStorage.setItem('gemini_api_key', key);
+      statusEl.textContent = '✓ API 키 저장됨';
+      statusEl.className = 'ai-key-status saved';
+      fetchGeminiModels();
+    } else {
+      localStorage.removeItem('gemini_api_key');
+      localStorage.removeItem('gemini_model');
+      statusEl.textContent = '';
+      statusEl.className = 'ai-key-status';
+      if (modelSelect) {
+        modelSelect.innerHTML = '<option value="">— API 키를 먼저 저장하세요 —</option>';
+        modelSelect.classList.remove('visible');
+      }
+    }
+    renderList();
+  });
+
+  if (modelSelect) {
+    modelSelect.addEventListener('change', () => {
+      localStorage.setItem('gemini_model', modelSelect.value);
+    });
+  }
+}
+
+// ── AI Image Analysis (Gemini) ──
+async function imgToBase64(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const maxSize = 768;
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function callGeminiVision(base64Data) {
+  const apiKey = getApiKey();
+  const modelSelect = document.getElementById('ai-model-select');
+  const modelName = modelSelect?.value || localStorage.getItem('gemini_model') || 'models/gemini-2.0-flash';
+  if (modelSelect?.value) localStorage.setItem('gemini_model', modelSelect.value);
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
+            { text: '이 이미지에 어울리는 파일명을 추천해줘. 규칙: 영소문자와 하이픈(-)만 사용, 2~4단어, 확장자 없이, 파일명만 답해줘. 예: "golden-retriever-puppy"' }
+          ]
+        }],
+        generationConfig: { maxOutputTokens: 60, temperature: 0.2 }
+      })
+    }
+  );
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API 오류 (${resp.status})`);
+  }
+
+  const data = await resp.json();
+  return (data.candidates?.[0]?.content?.parts?.[0]?.text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/"/g, '')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'unnamed';
+}
+
+async function analyzeImageName(id) {
+  const img = state.images.find(i => i.id === id);
+  if (!img || !getApiKey()) return;
+
+  img.aiLoading = true;
+  updateItemEl(img);
+
+  try {
+    const base64 = await imgToBase64(img.file);
+    if (!base64) throw new Error('이미지 변환 실패');
+    img.customName = await callGeminiVision(base64);
+  } catch (err) {
+    const el = document.getElementById(`item-${img.id}`);
+    if (el) {
+      const s = el.querySelector('.item-status');
+      if (s) {
+        const prev = { text: s.textContent, cls: s.className };
+        s.textContent = '분석 실패: ' + (err.message || '오류');
+        s.className = 'item-status error';
+        setTimeout(() => { s.textContent = prev.text; s.className = prev.cls; }, 3000);
+      }
+    }
+  } finally {
+    img.aiLoading = false;
+    updateItemEl(img);
+  }
+}
+
 // Global handlers for inline onclick
 window.downloadSingle = downloadSingle;
+window.analyzeImageName = analyzeImageName;
 window.removeImage = function(id) {
   const idx = state.images.findIndex(i => i.id === id);
   if (idx === -1) return;
@@ -403,3 +606,5 @@ window.removeImage = function(id) {
   renderList();
   updateControls();
 };
+
+initApiKeyUI();
