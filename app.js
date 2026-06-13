@@ -126,13 +126,16 @@ processBtn.addEventListener('click', processAll);
 downloadAllBtn.addEventListener('click', downloadAll);
 
 // ── HEIC Helpers ──
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp|tiff?|heic|heif|avif|svg)$/i;
+
 function isHeic(file) {
-  return file.type === 'image/heic' ||
-         file.type === 'image/heif' ||
-         /\.(heic|heif)$/i.test(file.name);
+  return /\.(heic|heif)$/i.test(file.name) ||
+         file.type === 'image/heic' ||
+         file.type === 'image/heif';
 }
 
 async function convertHeicToJpeg(file) {
+  if (typeof heic2any === 'undefined') throw new Error('heic2any 라이브러리 로드 실패');
   const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
   const blob = Array.isArray(result) ? result[0] : result;
   const jpegName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
@@ -141,8 +144,9 @@ async function convertHeicToJpeg(file) {
 
 // ── File Handling ──
 async function addFiles(fileList) {
+  // Accept image/* types OR any common image extension (covers HEIC with empty MIME type)
   const files = Array.from(fileList).filter(f =>
-    f.type.startsWith('image/') || isHeic(f)
+    f.type.startsWith('image/') || IMAGE_EXT.test(f.name)
   );
   if (!files.length) return;
 
@@ -172,7 +176,7 @@ async function addFiles(fileList) {
       item.status = 'pending';
     } catch (err) {
       item.status = 'error';
-      item.errorMsg = 'HEIC 변환 실패';
+      item.errorMsg = 'HEIC 변환 실패: ' + (err.message || err);
     }
     updateItemEl(item);
   }
