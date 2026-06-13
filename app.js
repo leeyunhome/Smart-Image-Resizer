@@ -134,12 +134,66 @@ function isHeic(file) {
          file.type === 'image/heif';
 }
 
+// Strategy 1: native browser (macOS, Windows with HEIC codec)
+async function convertViaCanvas(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (!img.naturalWidth) return reject(new Error('zero size'));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      canvas.toBlob(blob => {
+        if (!blob) return reject(new Error('blob 생성 실패'));
+        const name = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+        resolve(new File([blob], name, { type: 'image/jpeg' }));
+      }, 'image/jpeg', 0.95);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('브라우저 미지원')); };
+    img.src = url;
+  });
+}
+
+// Strategy 2: libheif-js WASM (supports modern iPhone HEIC profiles)
+async function convertViaLibheif(file) {
+  if (typeof libheif === 'undefined') throw new Error('libheif 없음');
+  const buf = await file.arrayBuffer();
+  const decoder = new libheif.HeifDecoder();
+  const images = decoder.decode(new Uint8Array(buf));
+  if (!images?.length) throw new Error('이미지 없음');
+  const src = images[0];
+  const w = src.get_width(), h = src.get_height();
+  const pixels = await new Promise((res, rej) => {
+    src.display({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }, d => {
+      d ? res(d) : rej(new Error('픽셀 디코딩 실패'));
+    });
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').putImageData(new ImageData(pixels.data, w, h), 0, 0);
+  return new Promise((res, rej) => canvas.toBlob(
+    b => b
+      ? res(new File([b], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' }))
+      : rej(new Error('blob 실패')),
+    'image/jpeg', 0.95
+  ));
+}
+
 async function convertHeicToJpeg(file) {
-  if (typeof heic2any === 'undefined') throw new Error('heic2any 라이브러리 로드 실패');
-  const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
-  const blob = Array.isArray(result) ? result[0] : result;
-  const jpegName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
-  return new File([blob], jpegName, { type: 'image/jpeg' });
+  // 1. Native browser HEIC support
+  try { return await convertViaCanvas(file); } catch (_) {}
+  // 2. libheif-js WASM (modern HEIC profiles)
+  try { return await convertViaLibheif(file); } catch (_) {}
+  // 3. heic2any (legacy fallback)
+  if (typeof heic2any !== 'undefined') {
+    const r = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
+    const b = Array.isArray(r) ? r[0] : r;
+    return new File([b], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+  }
+  throw new Error('Windows: Microsoft Store에서 "HEIC 이미지 확장" 무료 설치 후 재시도');
 }
 
 // ── File Handling ──
