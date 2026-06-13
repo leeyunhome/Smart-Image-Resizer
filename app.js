@@ -725,7 +725,7 @@ async function callGeminiVision(base64Data) {
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-            { text: 'Suggest a descriptive filename for this image. Rules: lowercase letters and hyphens only, 2-4 words, no extension, reply with ONLY the filename. Example: "golden-retriever-puppy"' }
+            { text: 'Suggest a filename for this image. Identify the main subject and most distinctive detail (color, action, location, mood). Rules: lowercase letters and hyphens only, 2-4 words, no generic words like photo/image/picture/unnamed, no file extension, reply with ONLY the filename. Good: "sunset-mountain-ridge", "golden-retriever-puppy", "tokyo-rainy-street". Bad: "photo1", "image", "beautiful-picture".' }
           ]
         }],
         generationConfig: { maxOutputTokens: 60, temperature: 0.2 }
