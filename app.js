@@ -157,62 +157,29 @@ async function convertViaCanvas(file) {
   });
 }
 
-// Strategy 2: libheif-js WASM (supports modern iPhone HEIC/HDR profiles)
-let _libheifMod = null;
-let _libheifPromise = null;
+// Strategy 2: @jsquash/heic (browser-native WASM, supports HDR/tmap/heix)
+let _jsquashDecode = null;
+let _jsquashPromise = null;
 
-function _waitForLibheifReady(mod) {
-  return new Promise((resolve, reject) => {
-    if (mod.HeifDecoder) return resolve(mod); // already ready
-    const timer = setTimeout(() => reject(new Error('WASM 초기화 타임아웃')), 15000);
-    const orig = mod.onRuntimeInitialized;
-    mod.onRuntimeInitialized = () => {
-      clearTimeout(timer);
-      if (typeof orig === 'function') orig.call(mod);
-      resolve(mod);
-    };
-  });
-}
-
-async function initLibheif() {
-  if (_libheifMod) return _libheifMod;
-  if (_libheifPromise) return _libheifPromise;
-
-  _libheifPromise = (async () => {
-    if (typeof libheif === 'undefined') throw new Error('libheif 스크립트 로드 실패');
-    console.log('[libheif-js] type:', typeof libheif);
-
-    // MODULARIZE=1: libheif is a factory function → call to get module
-    let mod = typeof libheif === 'function' ? await libheif() : libheif;
-
-    // Non-MODULARIZE: WASM may still be initializing
-    if (!mod.HeifDecoder) mod = await _waitForLibheifReady(mod);
-
-    if (!mod.HeifDecoder) throw new Error('HeifDecoder를 찾을 수 없음');
-    console.log('[libheif-js] 초기화 성공');
-    _libheifMod = mod;
-    return mod;
-  })();
-
-  return _libheifPromise;
-}
-
-async function convertViaLibheif(file) {
-  const heif = await initLibheif();
-  const buf = await file.arrayBuffer();
-  const decoder = new heif.HeifDecoder();
-  const images = decoder.decode(new Uint8Array(buf));
-  if (!images?.length) throw new Error('이미지 없음');
-  const src = images[0];
-  const w = src.get_width(), h = src.get_height();
-  const pixels = await new Promise((res, rej) => {
-    src.display({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }, d => {
-      d ? res(d) : rej(new Error('픽셀 디코딩 실패'));
+async function initJsquash() {
+  if (_jsquashDecode) return _jsquashDecode;
+  if (_jsquashPromise) return _jsquashPromise;
+  _jsquashPromise = import('https://esm.sh/@jsquash/heic@1.1.0')
+    .then(m => {
+      _jsquashDecode = m.default || m;
+      console.log('[jsquash/heic] 초기화 성공');
+      return _jsquashDecode;
     });
-  });
+  return _jsquashPromise;
+}
+
+async function convertViaJsquash(file) {
+  const decode = await initJsquash();
+  const imageData = await decode(await file.arrayBuffer());
   const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  canvas.getContext('2d').putImageData(new ImageData(pixels.data, w, h), 0, 0);
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  canvas.getContext('2d').putImageData(imageData, 0, 0);
   return new Promise((res, rej) => canvas.toBlob(
     b => b
       ? res(new File([b], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' }))
@@ -222,15 +189,15 @@ async function convertViaLibheif(file) {
 }
 
 async function convertHeicToJpeg(file) {
-  // 1. Native browser HEIC support
+  // 1. Native browser (macOS, Windows with HEIC codec)
   try { return await convertViaCanvas(file); } catch (e1) {
     console.warn('[HEIC] native 실패:', e1.message);
   }
-  // 2. libheif-js WASM (supports HDR/tmap, heix, modern profiles)
-  try { return await convertViaLibheif(file); } catch (e2) {
-    console.warn('[HEIC] libheif-js 실패:', e2.message);
+  // 2. @jsquash/heic WASM — supports HDR tmap/heix (iPhone 12+)
+  try { return await convertViaJsquash(file); } catch (e2) {
+    console.warn('[HEIC] jsquash 실패:', e2.message);
   }
-  // 3. heic2any (legacy fallback)
+  // 3. heic2any — legacy fallback for older HEIC
   if (typeof heic2any !== 'undefined') {
     try {
       const r = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
@@ -240,8 +207,11 @@ async function convertHeicToJpeg(file) {
       console.warn('[HEIC] heic2any 실패:', e3.message || e3);
     }
   }
-  throw new Error('HDR HEIC 변환 실패 — F12 콘솔에서 상세 오류 확인');
+  throw new Error('HEIC 변환 실패 (file:// 로컬 실행 시 제한됨 → GitHub Pages에서 테스트)');
 }
+
+// Preload @jsquash/heic in background so it's ready when needed
+initJsquash().catch(() => {});
 
 // ── File Handling ──
 async function addFiles(fileList) {
