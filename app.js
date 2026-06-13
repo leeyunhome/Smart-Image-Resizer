@@ -159,13 +159,42 @@ async function convertViaCanvas(file) {
 
 // Strategy 2: libheif-js WASM (supports modern iPhone HEIC/HDR profiles)
 let _libheifMod = null;
+let _libheifPromise = null;
+
+function _waitForLibheifReady(mod) {
+  return new Promise((resolve, reject) => {
+    if (mod.HeifDecoder) return resolve(mod); // already ready
+    const timer = setTimeout(() => reject(new Error('WASM 초기화 타임아웃')), 15000);
+    const orig = mod.onRuntimeInitialized;
+    mod.onRuntimeInitialized = () => {
+      clearTimeout(timer);
+      if (typeof orig === 'function') orig.call(mod);
+      resolve(mod);
+    };
+  });
+}
+
 async function initLibheif() {
   if (_libheifMod) return _libheifMod;
-  if (typeof libheif === 'undefined') throw new Error('libheif 로드 안됨');
-  // libheif-js uses Emscripten MODULARIZE=1, so libheif is a factory function
-  _libheifMod = typeof libheif === 'function' ? await libheif() : libheif;
-  if (!_libheifMod?.HeifDecoder) throw new Error('HeifDecoder 없음');
-  return _libheifMod;
+  if (_libheifPromise) return _libheifPromise;
+
+  _libheifPromise = (async () => {
+    if (typeof libheif === 'undefined') throw new Error('libheif 스크립트 로드 실패');
+    console.log('[libheif-js] type:', typeof libheif);
+
+    // MODULARIZE=1: libheif is a factory function → call to get module
+    let mod = typeof libheif === 'function' ? await libheif() : libheif;
+
+    // Non-MODULARIZE: WASM may still be initializing
+    if (!mod.HeifDecoder) mod = await _waitForLibheifReady(mod);
+
+    if (!mod.HeifDecoder) throw new Error('HeifDecoder를 찾을 수 없음');
+    console.log('[libheif-js] 초기화 성공');
+    _libheifMod = mod;
+    return mod;
+  })();
+
+  return _libheifPromise;
 }
 
 async function convertViaLibheif(file) {
