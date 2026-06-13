@@ -125,23 +125,58 @@ resHEl.addEventListener('input', () => {
 processBtn.addEventListener('click', processAll);
 downloadAllBtn.addEventListener('click', downloadAll);
 
+// ── HEIC Helpers ──
+function isHeic(file) {
+  return file.type === 'image/heic' ||
+         file.type === 'image/heif' ||
+         /\.(heic|heif)$/i.test(file.name);
+}
+
+async function convertHeicToJpeg(file) {
+  const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
+  const blob = Array.isArray(result) ? result[0] : result;
+  const jpegName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+  return new File([blob], jpegName, { type: 'image/jpeg' });
+}
+
 // ── File Handling ──
-function addFiles(fileList) {
-  const images = Array.from(fileList).filter(f => f.type.startsWith('image/'));
-  images.forEach(file => {
-    state.images.push({
-      id: crypto.randomUUID(),
-      file,
-      previewUrl: URL.createObjectURL(file),
-      status: 'pending',
-      progress: 0,
-      result: null,
-      errorMsg: '',
-      customName: null,
-      aiLoading: false
-    });
-  });
+async function addFiles(fileList) {
+  const files = Array.from(fileList).filter(f =>
+    f.type.startsWith('image/') || isHeic(f)
+  );
+  if (!files.length) return;
+
+  // Add all files immediately; HEIC ones start in 'converting' state
+  const newItems = files.map(file => ({
+    id: crypto.randomUUID(),
+    file,
+    previewUrl: isHeic(file) ? '' : URL.createObjectURL(file),
+    status: isHeic(file) ? 'converting' : 'pending',
+    progress: 0,
+    result: null,
+    errorMsg: '',
+    customName: null,
+    aiLoading: false
+  }));
+
+  state.images.push(...newItems);
   renderList();
+  updateControls();
+
+  // Convert HEIC files in background
+  for (const item of newItems.filter(i => i.status === 'converting')) {
+    try {
+      const converted = await convertHeicToJpeg(item.file);
+      item.file = converted;
+      item.previewUrl = URL.createObjectURL(converted);
+      item.status = 'pending';
+    } catch (err) {
+      item.status = 'error';
+      item.errorMsg = 'HEIC 변환 실패';
+    }
+    updateItemEl(item);
+  }
+
   updateControls();
 }
 
@@ -164,9 +199,12 @@ function nameHTML(img) {
 }
 
 function itemHTML(img) {
+  const thumb = img.previewUrl
+    ? `<img class="thumb" src="${img.previewUrl}" alt="${esc(img.file.name)}">`
+    : `<div class="thumb thumb-placeholder">⏳</div>`;
   return `
     <div class="image-item" id="item-${img.id}">
-      <img class="thumb" src="${img.previewUrl}" alt="${esc(img.file.name)}">
+      ${thumb}
       <div class="item-info">
         <div class="item-name" title="${esc(img.customName || img.file.name)}">${nameHTML(img)}</div>
         <div class="progress-wrap">
@@ -196,6 +234,7 @@ function actionHTML(img) {
 }
 
 function statusText(img) {
+  if (img.status === 'converting') return 'HEIC 변환 중...';
   if (img.status === 'pending')    return '대기 중';
   if (img.status === 'processing') return `처리 중... ${img.progress}%`;
   if (img.status === 'done')       return '완료';
@@ -206,6 +245,17 @@ function statusText(img) {
 function updateItemEl(img) {
   const el = document.getElementById(`item-${img.id}`);
   if (!el) return;
+
+  // Replace placeholder thumb once HEIC conversion is done
+  const thumbEl = el.querySelector('.thumb-placeholder');
+  if (thumbEl && img.previewUrl) {
+    const img2 = document.createElement('img');
+    img2.className = 'thumb';
+    img2.alt = img.file.name;
+    img2.src = img.previewUrl;
+    thumbEl.replaceWith(img2);
+  }
+
   el.querySelector('.progress-bar').style.width = img.progress + '%';
   el.querySelector('.progress-bar').className = `progress-bar ${img.status}`;
   const statusEl = el.querySelector('.item-status');

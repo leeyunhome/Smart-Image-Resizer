@@ -27,7 +27,7 @@
           <p>이미지를 드래그 앤 드롭하거나</p>
           <button id="upload-btn" class="btn-upload">파일 선택</button>
         </div>
-        <input type="file" id="file-input" accept="image/*" multiple>
+        <input type="file" id="file-input" accept="image/*,.heic,.heif" multiple>
 
         <p class="section-title">캔버스 비율</p>
         <div class="ratio-grid">
@@ -124,6 +124,7 @@
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
