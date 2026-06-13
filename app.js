@@ -326,13 +326,14 @@ function actionHTML(img) {
         ${img.aiLoading || img.status === 'processing' ? 'disabled' : ''}>✨</button>`
     : '';
 
+  const removeBtn = `<button class="btn-icon remove" title="제거" onclick="removeImage('${img.id}')">✕</button>`;
   if (img.status === 'done') {
-    return aiBtn + `<button class="btn-icon" title="다운로드" onclick="downloadSingle('${img.id}')">⬇️</button>`;
+    return aiBtn + `<button class="btn-icon" title="다운로드" onclick="downloadSingle('${img.id}')">⬇️</button>` + removeBtn;
   }
   if (img.status === 'processing') {
     return aiBtn + `<span class="btn-icon spinning">⟳</span>`;
   }
-  return aiBtn + `<button class="btn-icon remove" title="제거" onclick="removeImage('${img.id}')">✕</button>`;
+  return aiBtn + removeBtn;
 }
 
 function statusText(img) {
@@ -739,7 +740,9 @@ async function callGeminiVision(base64Data) {
   }
 
   const data = await resp.json();
-  return (data.candidates?.[0]?.content?.parts?.[0]?.text || '')
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  console.log('[AI] raw response:', JSON.stringify(raw));
+  return raw
     .trim()
     .toLowerCase()
     .replace(/"/g, '')
