@@ -157,29 +157,56 @@ async function convertViaCanvas(file) {
   });
 }
 
-// Strategy 2: @jsquash/heic (browser-native WASM, supports HDR/tmap/heix)
-let _jsquashDecode = null;
-let _jsquashPromise = null;
+// Strategy 2: libheif-js v1.17.6 (Emscripten WASM, supports HDR tmap/heix)
+let _libheifMod = null;
+let _libheifInitP = null;
 
-async function initJsquash() {
-  if (_jsquashDecode) return _jsquashDecode;
-  if (_jsquashPromise) return _jsquashPromise;
-  _jsquashPromise = import('https://esm.sh/@jsquash/heic@1.1.0')
-    .then(m => {
-      _jsquashDecode = m.default || m;
-      console.log('[jsquash/heic] 초기화 성공');
-      return _jsquashDecode;
-    });
-  return _jsquashPromise;
+async function initLibheif() {
+  if (_libheifMod) return _libheifMod;
+  if (_libheifInitP) return _libheifInitP;
+  _libheifInitP = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('WASM 초기화 타임아웃')), 15000);
+    const done = (mod) => { clearTimeout(timeout); _libheifMod = mod; resolve(mod); };
+    // libheif-bundle.js creates window.libheif as an Emscripten factory function
+    const factory = window.libheif;
+    if (typeof factory === 'undefined') {
+      clearTimeout(timeout);
+      reject(new Error('libheif global 없음 (CDN 로드 실패)'));
+      return;
+    }
+    let mod;
+    try {
+      mod = (typeof factory === 'function') ? factory() : factory;
+    } catch (e) {
+      clearTimeout(timeout); reject(e); return;
+    }
+    if (!mod) { clearTimeout(timeout); reject(new Error('libheif() 반환값 없음')); return; }
+    // Promise-based init (Emscripten MODULARIZE)
+    if (typeof mod.then === 'function') { mod.then(done).catch(reject); return; }
+    // Already ready
+    if (mod.HeifDecoder) { done(mod); return; }
+    // Callback-based init
+    const origCb = mod.onRuntimeInitialized;
+    mod.onRuntimeInitialized = () => { if (origCb) origCb.call(mod); done(mod); };
+  });
+  return _libheifInitP;
 }
 
-async function convertViaJsquash(file) {
-  const decode = await initJsquash();
-  const imageData = await decode(await file.arrayBuffer());
+async function convertViaLibheif(file) {
+  const mod = await initLibheif();
+  const decoder = new mod.HeifDecoder();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const images = decoder.decode(data);
+  if (!images || !images.length) throw new Error('HEIF 이미지 없음');
+  const image = images[0];
+  const w = image.get_width(), h = image.get_height();
+  const pixelData = await new Promise((res, rej) =>
+    image.display({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h },
+      d => d ? res(d) : rej(new Error('display 실패')))
+  );
   const canvas = document.createElement('canvas');
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-  canvas.getContext('2d').putImageData(imageData, 0, 0);
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').putImageData(new ImageData(pixelData.data, w, h), 0, 0);
   return new Promise((res, rej) => canvas.toBlob(
     b => b
       ? res(new File([b], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' }))
@@ -193,9 +220,9 @@ async function convertHeicToJpeg(file) {
   try { return await convertViaCanvas(file); } catch (e1) {
     console.warn('[HEIC] native 실패:', e1.message);
   }
-  // 2. @jsquash/heic WASM — supports HDR tmap/heix (iPhone 12+)
-  try { return await convertViaJsquash(file); } catch (e2) {
-    console.warn('[HEIC] jsquash 실패:', e2.message);
+  // 2. libheif-js v1.17.6 WASM — supports HDR tmap/heix (iPhone 12+)
+  try { return await convertViaLibheif(file); } catch (e2) {
+    console.warn('[HEIC] libheif-js 실패:', e2.message);
   }
   // 3. heic2any — legacy fallback for older HEIC
   if (typeof heic2any !== 'undefined') {
@@ -207,11 +234,11 @@ async function convertHeicToJpeg(file) {
       console.warn('[HEIC] heic2any 실패:', e3.message || e3);
     }
   }
-  throw new Error('HEIC 변환 실패 (file:// 로컬 실행 시 제한됨 → GitHub Pages에서 테스트)');
+  throw new Error('HEIC 변환 실패 — 모든 방법 실패. F12 콘솔에서 상세 오류 확인');
 }
 
-// Preload @jsquash/heic in background so it's ready when needed
-initJsquash().catch(() => {});
+// Preload libheif-js in background so it's ready when needed
+initLibheif().catch(e => console.log('[libheif-js] 사전 로드:', e.message));
 
 // ── File Handling ──
 async function addFiles(fileList) {
