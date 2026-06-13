@@ -425,17 +425,25 @@ function getApiKey() {
 
 async function fetchGeminiModels() {
   const apiKey = getApiKey();
-  const modelSelect = document.getElementById('ai-model-select');
+  const modelSelect  = document.getElementById('ai-model-select');
+  const refreshBtn   = document.getElementById('ai-model-refresh');
+  const statusEl     = document.getElementById('api-key-status');
   if (!apiKey || !modelSelect) return;
 
-  modelSelect.innerHTML = '<option value="">모델 목록 불러오는 중...</option>';
-  modelSelect.classList.add('visible');
+  modelSelect.disabled = true;
+  modelSelect.innerHTML = '<option value="">불러오는 중...</option>';
+  if (refreshBtn) refreshBtn.classList.add('spinning');
 
   try {
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
     );
-    if (!resp.ok) throw new Error(`${resp.status}`);
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      const msg = errData.error?.message || `HTTP ${resp.status}`;
+      throw new Error(msg);
+    }
 
     const data = await resp.json();
     const models = (data.models || [])
@@ -460,16 +468,30 @@ async function fetchGeminiModels() {
       modelSelect.value = models[0].name;
       localStorage.setItem('gemini_model', models[0].name);
     }
+
+    modelSelect.disabled = false;
+    if (statusEl) {
+      statusEl.textContent = `✓ API 키 저장됨 (모델 ${models.length}개)`;
+      statusEl.className = 'ai-key-status saved';
+    }
   } catch (e) {
-    modelSelect.innerHTML = '<option value="">모델 로드 실패 — 키를 확인하세요</option>';
+    modelSelect.innerHTML = '<option value="">로드 실패</option>';
+    if (statusEl) {
+      statusEl.textContent = '오류: ' + e.message;
+      statusEl.className = 'ai-key-status';
+      statusEl.style.color = 'var(--error)';
+    }
+  } finally {
+    if (refreshBtn) refreshBtn.classList.remove('spinning');
   }
 }
 
 function initApiKeyUI() {
-  const input    = document.getElementById('api-key-input');
-  const statusEl = document.getElementById('api-key-status');
-  const saveBtn  = document.getElementById('api-key-save-btn');
+  const input       = document.getElementById('api-key-input');
+  const statusEl    = document.getElementById('api-key-status');
+  const saveBtn     = document.getElementById('api-key-save-btn');
   const modelSelect = document.getElementById('ai-model-select');
+  const refreshBtn  = document.getElementById('ai-model-refresh');
 
   const saved = getApiKey();
   if (saved) {
@@ -483,17 +505,19 @@ function initApiKeyUI() {
     const key = input.value.trim();
     if (key) {
       localStorage.setItem('gemini_api_key', key);
-      statusEl.textContent = '✓ API 키 저장됨';
+      statusEl.textContent = '저장됨 — 모델 목록 불러오는 중...';
       statusEl.className = 'ai-key-status saved';
+      statusEl.style.color = '';
       fetchGeminiModels();
     } else {
       localStorage.removeItem('gemini_api_key');
       localStorage.removeItem('gemini_model');
       statusEl.textContent = '';
       statusEl.className = 'ai-key-status';
+      statusEl.style.color = '';
       if (modelSelect) {
         modelSelect.innerHTML = '<option value="">— API 키를 먼저 저장하세요 —</option>';
-        modelSelect.classList.remove('visible');
+        modelSelect.disabled = true;
       }
     }
     renderList();
@@ -502,6 +526,12 @@ function initApiKeyUI() {
   if (modelSelect) {
     modelSelect.addEventListener('change', () => {
       localStorage.setItem('gemini_model', modelSelect.value);
+    });
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      if (getApiKey()) fetchGeminiModels();
     });
   }
 }

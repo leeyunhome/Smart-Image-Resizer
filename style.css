@@ -651,9 +651,16 @@ main {
 }
 
 /* ── AI Model Select ── */
-.ai-model-select {
-  width: 100%;
+.ai-model-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
   margin-top: 8px;
+}
+
+.ai-model-select {
+  flex: 1;
+  min-width: 0;
   padding: 7px 10px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
@@ -662,20 +669,47 @@ main {
   font-size: 0.82rem;
   cursor: pointer;
   outline: none;
-  display: none;
-}
-
-.ai-model-select.visible {
-  display: block;
 }
 
 .ai-model-select:focus {
   border-color: var(--accent);
 }
 
-.ai-model-select option {
+.ai-model-select option,
+.ai-model-select optgroup {
   background: #1e293b;
   color: var(--text);
+}
+
+.ai-model-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-refresh {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-refresh:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: var(--text);
+}
+
+.btn-refresh.spinning {
+  animation: spin 1s linear infinite;
+  pointer-events: none;
 }
 
 /* ── AI Button ── */
