@@ -725,7 +725,7 @@ async function callGeminiVision(base64Data) {
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-            { text: 'Suggest a filename for this image. Identify the main subject and most distinctive detail (color, action, location, mood). Rules: lowercase letters and hyphens only, 2-4 words, no generic words like photo/image/picture/unnamed, no file extension, reply with ONLY the filename. Good: "sunset-mountain-ridge", "golden-retriever-puppy", "tokyo-rainy-street". Bad: "photo1", "image", "beautiful-picture".' }
+            { text: 'You are an assistant that generates a concise, descriptive filename for an image.\n\nLook at the image and output ONLY a filename in English, following these rules:\n- Use 3 to 6 lowercase English words describing the main subject, setting, and any notable detail (e.g. color, action, object count).\n- Join words with single hyphens (kebab-case). No spaces, no underscores.\n- Use ONLY the characters a-z, 0-9, and hyphen. No uppercase, no Korean, no punctuation, no quotes.\n- Do NOT include a file extension.\n- Do NOT include dates, camera info, or generic words like "image", "photo", "picture", "img".\n- Be specific: prefer "golden-retriever-on-beach" over "dog-outside".\n- If text is clearly visible and central, you may include it (e.g. a product name).\n\nOutput the filename only, nothing else.\n\nExamples:\n- two-people-hiking-snowy-mountain\n- red-ceramic-coffee-mug-on-desk\n- blue-vintage-car-city-street-night' }
           ]
         }],
         generationConfig: { maxOutputTokens: 60, temperature: 0.2 }
