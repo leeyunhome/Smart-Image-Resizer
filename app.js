@@ -725,7 +725,7 @@ async function callGeminiVision(base64Data) {
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-            { text: '이 이미지에 어울리는 파일명을 추천해줘. 규칙: 영소문자와 하이픈(-)만 사용, 2~4단어, 확장자 없이, 파일명만 답해줘. 예: "golden-retriever-puppy"' }
+            { text: 'Suggest a descriptive filename for this image. Rules: lowercase letters and hyphens only, 2-4 words, no extension, reply with ONLY the filename. Example: "golden-retriever-puppy"' }
           ]
         }],
         generationConfig: { maxOutputTokens: 60, temperature: 0.2 }
