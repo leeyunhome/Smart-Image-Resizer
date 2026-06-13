@@ -157,11 +157,21 @@ async function convertViaCanvas(file) {
   });
 }
 
-// Strategy 2: libheif-js WASM (supports modern iPhone HEIC profiles)
+// Strategy 2: libheif-js WASM (supports modern iPhone HEIC/HDR profiles)
+let _libheifMod = null;
+async function initLibheif() {
+  if (_libheifMod) return _libheifMod;
+  if (typeof libheif === 'undefined') throw new Error('libheif 로드 안됨');
+  // libheif-js uses Emscripten MODULARIZE=1, so libheif is a factory function
+  _libheifMod = typeof libheif === 'function' ? await libheif() : libheif;
+  if (!_libheifMod?.HeifDecoder) throw new Error('HeifDecoder 없음');
+  return _libheifMod;
+}
+
 async function convertViaLibheif(file) {
-  if (typeof libheif === 'undefined') throw new Error('libheif 없음');
+  const heif = await initLibheif();
   const buf = await file.arrayBuffer();
-  const decoder = new libheif.HeifDecoder();
+  const decoder = new heif.HeifDecoder();
   const images = decoder.decode(new Uint8Array(buf));
   if (!images?.length) throw new Error('이미지 없음');
   const src = images[0];
@@ -184,16 +194,24 @@ async function convertViaLibheif(file) {
 
 async function convertHeicToJpeg(file) {
   // 1. Native browser HEIC support
-  try { return await convertViaCanvas(file); } catch (_) {}
-  // 2. libheif-js WASM (modern HEIC profiles)
-  try { return await convertViaLibheif(file); } catch (_) {}
+  try { return await convertViaCanvas(file); } catch (e1) {
+    console.warn('[HEIC] native 실패:', e1.message);
+  }
+  // 2. libheif-js WASM (supports HDR/tmap, heix, modern profiles)
+  try { return await convertViaLibheif(file); } catch (e2) {
+    console.warn('[HEIC] libheif-js 실패:', e2.message);
+  }
   // 3. heic2any (legacy fallback)
   if (typeof heic2any !== 'undefined') {
-    const r = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
-    const b = Array.isArray(r) ? r[0] : r;
-    return new File([b], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+    try {
+      const r = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.95 });
+      const b = Array.isArray(r) ? r[0] : r;
+      return new File([b], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+    } catch (e3) {
+      console.warn('[HEIC] heic2any 실패:', e3.message || e3);
+    }
   }
-  throw new Error('Windows: Microsoft Store에서 "HEIC 이미지 확장" 무료 설치 후 재시도');
+  throw new Error('HDR HEIC 변환 실패 — F12 콘솔에서 상세 오류 확인');
 }
 
 // ── File Handling ──
