@@ -43,7 +43,7 @@ For each image, draws onto a canvas at the target aspect ratio using either:
 
 Sends a 768px-max JPEG thumbnail to Gemini Vision API. The model and API key are stored in `localStorage` (`gemini_api_key`, `gemini_model`). Model list is fetched live from the Gemini Models API — supports any future models automatically.
 
-The response is sanitized with `.replace(/[^a-z0-9-]/g, '-')`, so the prompt **must** be in English to avoid Korean characters being stripped to empty string. Prompt uses system-role style instructions with explicit rules and 3 examples for consistent kebab-case output.
+Parsing uses regex to extract the longest kebab-case token from the full response: `raw.match(/[a-z0-9]+(?:-[a-z0-9]+)+/g)`. This handles model prefixes ("Filename: ...") and appended explanations. Results under 5 chars → `'unnamed'`. Prompt ends with `Filename:` anchor, instructs model to use real names for famous artworks/landmarks, `maxOutputTokens: 200` (60 caused mid-word truncation).
 
 ## CDN Dependencies (loaded in `index.html`)
 
