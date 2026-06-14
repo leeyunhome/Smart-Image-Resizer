@@ -736,7 +736,7 @@ async function callGeminiVision(base64Data) {
             { text: 'You are an assistant that generates a concise, descriptive filename for an image.\n\nLook at the image and output ONLY a filename in English, following these rules:\n- Use 3 to 6 lowercase English words describing the main subject, setting, and any notable detail (e.g. color, action, object count).\n- Join words with single hyphens (kebab-case). No spaces, no underscores.\n- Use ONLY the characters a-z, 0-9, and hyphen. No uppercase, no Korean, no punctuation, no quotes.\n- Do NOT include a file extension.\n- Do NOT include dates, camera info, or generic words like "image", "photo", "picture", "img".\n- Be specific: prefer "golden-retriever-on-beach" over "dog-outside".\n- If text is clearly visible and central, you may include it (e.g. a product name).\n\nOutput the filename only, nothing else.\n\nExamples:\n- two-people-hiking-snowy-mountain\n- red-ceramic-coffee-mug-on-desk\n- blue-vintage-car-city-street-night' }
           ]
         }],
-        generationConfig: { maxOutputTokens: 60, temperature: 0.2 }
+        generationConfig: { maxOutputTokens: 200, temperature: 0.2 }
       })
     }
   );
@@ -749,14 +749,18 @@ async function callGeminiVision(base64Data) {
   const data = await resp.json();
   const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   console.log('[AI] raw response:', JSON.stringify(raw));
-  return raw
+  // Take only the first line (model sometimes adds explanation after)
+  const firstLine = raw.split('\n')[0];
+  const result = firstLine
     .trim()
     .toLowerCase()
     .replace(/"/g, '')
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    || 'unnamed';
+    .replace(/^-|-$/g, '');
+  // Reject single-word results under 4 chars (likely truncated: "st", "as")
+  if (!result || result.length < 3) return 'unnamed';
+  return result;
 }
 
 async function analyzeImageName(id) {
