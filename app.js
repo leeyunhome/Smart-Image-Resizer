@@ -733,7 +733,7 @@ async function callGeminiVision(base64Data) {
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-            { text: 'You are an assistant that generates a concise, descriptive filename for an image.\n\nLook at the image and output ONLY a filename in English, following these rules:\n- Use 3 to 6 lowercase English words describing the main subject, setting, and any notable detail (e.g. color, action, object count).\n- Join words with single hyphens (kebab-case). No spaces, no underscores.\n- Use ONLY the characters a-z, 0-9, and hyphen. No uppercase, no Korean, no punctuation, no quotes.\n- Do NOT include a file extension.\n- Do NOT include dates, camera info, or generic words like "image", "photo", "picture", "img".\n- Be specific: prefer "golden-retriever-on-beach" over "dog-outside".\n- If text is clearly visible and central, you may include it (e.g. a product name).\n\nOutput the filename only, nothing else.\n\nExamples:\n- two-people-hiking-snowy-mountain\n- red-ceramic-coffee-mug-on-desk\n- blue-vintage-car-city-street-night' }
+            { text: 'Generate a filename for this image. Output a single line with ONLY the filename — no explanation, no punctuation, no quotes, no extension.\n\nRules:\n- 4 to 6 lowercase words joined by hyphens (kebab-case)\n- Characters: a-z, 0-9, hyphen only\n- If you recognize a famous artwork, landmark, or person, use their real name (e.g. "raphael-school-of-athens", "sistine-chapel-ceiling", "colosseum-rome-exterior")\n- Include setting or mood when it adds meaning (time of day, weather, crowd, color)\n- Never abbreviate words — always write the complete word\n- Avoid generic words: photo, image, picture, view, scene, shot\n\nExamples of good filenames:\n- raphael-school-of-athens-fresco-vatican\n- narrow-cobblestone-street-rome-evening\n- espresso-cup-marble-cafe-counter\n- swiss-guard-uniform-st-peters-square\n- michelangelo-sistine-chapel-ceiling-detail\n\nFilename:' }
           ]
         }],
         generationConfig: { maxOutputTokens: 200, temperature: 0.2 }
@@ -749,18 +749,12 @@ async function callGeminiVision(base64Data) {
   const data = await resp.json();
   const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   console.log('[AI] raw response:', JSON.stringify(raw));
-  // Take only the first line (model sometimes adds explanation after)
-  const firstLine = raw.split('\n')[0];
-  const result = firstLine
-    .trim()
-    .toLowerCase()
-    .replace(/"/g, '')
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  // Reject single-word results under 4 chars (likely truncated: "st", "as")
-  if (!result || result.length < 3) return 'unnamed';
-  return result;
+  // Extract all kebab-case tokens (word-word or word-word-word...) from full response
+  // This handles model adding "Filename: " prefix or explanation after
+  const tokens = raw.toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)+/g) || [];
+  const best = tokens.reduce((a, b) => (b.length > a.length ? b : a), '');
+  if (!best || best.length < 5) return 'unnamed';
+  return best;
 }
 
 async function analyzeImageName(id) {
