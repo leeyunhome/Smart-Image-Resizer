@@ -430,6 +430,15 @@ main {
   background: rgba(255, 255, 255, 0.13);
 }
 
+.btn-ai-bulk {
+  background: linear-gradient(135deg, #6c3fc5, #9b5de5);
+  color: white;
+}
+
+.btn-ai-bulk:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7d4fd6, #ac6ef6);
+}
+
 .btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;

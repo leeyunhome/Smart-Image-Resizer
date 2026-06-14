@@ -2,6 +2,7 @@
 
 const state = {
   images: [],
+  isAiBulk: false,
   settings: {
     ratio: '1:1',
     customW: 1,
@@ -372,12 +373,18 @@ function updateItemEl(img) {
   }
 }
 
+const aiBulkBtn = document.getElementById('ai-bulk-btn');
+
 function updateControls() {
   const total = state.images.length;
   const doneCount = state.images.filter(i => i.status === 'done').length;
   countBadgeEl.textContent = total > 0 ? `(${total}개)` : '';
-  processBtn.disabled  = state.isProcessing || total === 0;
+  processBtn.disabled = state.isProcessing || total === 0;
   downloadAllBtn.disabled = doneCount === 0;
+  if (aiBulkBtn) {
+    aiBulkBtn.disabled = !getApiKey() || total === 0 || state.isAiBulk;
+    aiBulkBtn.style.display = getApiKey() ? '' : 'none';
+  }
 }
 
 // ── Processing ──
@@ -695,7 +702,7 @@ async function imgToBase64(file) {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const maxSize = 768;
+      const maxSize = 1024;
       const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
       const w = Math.round(img.width * scale);
       const h = Math.round(img.height * scale);
@@ -779,6 +786,30 @@ async function analyzeImageName(id) {
     updateItemEl(img);
   }
 }
+
+// ── AI Bulk Rename ──
+async function analyzeAllNames() {
+  if (!getApiKey() || state.isAiBulk) return;
+  const targets = state.images.filter(i =>
+    i.status !== 'converting' && i.status !== 'processing' && !i.aiLoading
+  );
+  if (!targets.length) return;
+
+  state.isAiBulk = true;
+  if (aiBulkBtn) { aiBulkBtn.textContent = '✨ 분석 중...'; aiBulkBtn.disabled = true; }
+
+  for (let i = 0; i < targets.length; i++) {
+    if (aiBulkBtn) aiBulkBtn.textContent = `✨ ${i + 1}/${targets.length}`;
+    await analyzeImageName(targets[i].id);
+    if (i < targets.length - 1) await new Promise(r => setTimeout(r, 300));
+  }
+
+  state.isAiBulk = false;
+  if (aiBulkBtn) aiBulkBtn.textContent = '✨ AI 일괄 이름';
+  updateControls();
+}
+
+if (aiBulkBtn) aiBulkBtn.addEventListener('click', analyzeAllNames);
 
 // Global handlers for inline onclick
 window.downloadSingle = downloadSingle;
